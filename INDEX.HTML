@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domain Insights</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #374151;
+        }
+        .tab-content {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            transform: translateY(10px);
+            opacity: 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: none;
+        }
+        .tab-content.active {
+            opacity: 1;
+            transform: translateY(0);
+            position: relative;
+            display: block;
+        }
+        .tab-button.active {
+            border-bottom: 2px solid #1f2937;
+            font-weight: 600;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1f2937;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Markdown styling for results */
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .markdown-content ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        .markdown-content li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-100">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-2 text-gray-800">Domain Insights</h1>
+        <p class="text-center text-gray-500 mb-8">Professional analysis for domain investors and SEO specialists.</p>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-8">
+            <input
+                type="text"
+                id="domainInput"
+                placeholder="Enter a domain name (e.g., example.com)"
+                class="flex-grow p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 text-gray-700"
+            />
+            <button
+                id="analyzeButton"
+                class="bg-gray-800 text-white font-medium py-3 px-6 rounded-lg hover:bg-gray-700 transition duration-300 ease-in-out flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <span id="buttonText">Analyze Domain</span>
+                <div id="loader" class="hidden loader ml-2"></div>
+            </button>
+        </div>
+
+        <div id="resultsContainer" class="hidden">
+            <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-6">
+                <span class="block sm:inline" id="errorText"></span>
+            </div>
+
+            <div class="flex flex-wrap border-b border-gray-200 mb-4">
+                <button id="tab1" class="tab-button px-4 py-2 text-sm sm:text-base text-gray-600 transition duration-300 ease-in-out hover:text-gray-800 active active-tab">Overview</button>
+                <button id="tab2" class="tab-button px-4 py-2 text-sm sm:text-base text-gray-600 transition duration-300 ease-in-out hover:text-gray-800">SEO Potential</button>
+                <button id="tab3" class="tab-button px-4 py-2 text-sm sm:text-base text-gray-600 transition duration-300 ease-in-out hover:text-gray-800">Monetization Ideas</button>
+                <button id="tab4" class="tab-button px-4 py-2 text-sm sm:text-base text-gray-600 transition duration-300 ease-in-out hover:text-gray-800">Estimated Value</button>
+                <button id="tab5" class="tab-button px-4 py-2 text-sm sm:text-base text-gray-600 transition duration-300 ease-in-out hover:text-gray-800">Risks & Rec.</button>
+            </div>
+            
+            <div class="relative min-h-64">
+                <div id="content1" class="tab-content active rounded-xl border border-gray-200 bg-white p-6 markdown-content"></div>
+                <div id="content2" class="tab-content rounded-xl border border-gray-200 bg-white p-6 markdown-content"></div>
+                <div id="content3" class="tab-content rounded-xl border border-gray-200 bg-white p-6 markdown-content"></div>
+                <div id="content4" class="tab-content rounded-xl border border-gray-200 bg-white p-6 markdown-content"></div>
+                <div id="content5" class="tab-content rounded-xl border border-gray-200 bg-white p-6 markdown-content"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const API_KEY = "AIzaSyBsrj-G-xnJHu5urlI-gjlL7_dnhGeBeJA"; // Your Gemini API Key
+            const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+
+            const domainInput = document.getElementById('domainInput');
+            const analyzeButton = document.getElementById('analyzeButton');
+            const loader = document.getElementById('loader');
+            const buttonText = document.getElementById('buttonText');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            // Handle tab switching
+            function switchTab(targetTab) {
+                tabButtons.forEach(button => {
+                    button.classList.remove('active');
+                });
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                });
+
+                document.getElementById(targetTab).classList.add('active');
+                document.getElementById(`content${targetTab.slice(-1)}`).classList.add('active');
+            }
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    switchTab(button.id);
+                });
+            });
+
+            // Main analysis function
+            analyzeButton.addEventListener('click', async () => {
+                const domain = domainInput.value.trim();
+                if (!domain) {
+                    showError('Please enter a domain name.');
+                    return;
+                }
+
+                showLoading(true);
+                hideResults();
+                hideError();
+
+                const prompt = {
+                    "contents": [{
+                        "parts": [{
+                            "text": `You are a professional domain name analyst. The user will provide a domain name (example.com). Your task is to generate a hyper-detailed, structured analysis of that domain.
+
+                            Always return the result in clear, structured sections with headings and bullet points.
+                            Keep the tone professional, concise, and useful for domain investors and SEO specialists.
+
+                            # Output Format (very important)
+                            Return the analysis in Markdown format with the following structure:
+
+                            ## Domain Overview
+                            - Domain: [user’s domain]
+                            - Age of domain (estimate if unknown)
+                            - Likely industry/niche
+                            - Memorability & branding strength
+
+                            ## Estimated Value
+                            - Approximate domain value range (USD)
+                            - Factors influencing value (length, keywords, TLD, trends)
+                            - Comparison with similar domains
+
+                            ## SEO Potential
+                            - Keyword strength
+                            - CPC (estimated, general ranges)
+                            - Search volume (estimate based on keyword intent)
+                            - Backlink potential
+                            - Traffic type (branded vs generic keyword)
+
+                            ## Monetization Ideas
+                            - Possible use cases (blog, e-commerce, SaaS, informational site, brand site)
+                            - Parking potential (ads revenue estimate range if relevant)
+                            - Resale potential (marketplaces where it could sell)
+
+                            ## Risks and Limitations
+                            - Trademark risk (if domain contains brand names)
+                            - Possible low demand factors
+                            - SEO competition
+
+                            ## Final Recommendation
+                            - Short summary (2–3 sentences) giving a realistic outlook for this domain.
+
+                            Analyze this domain: ${domain}`
+                        }]
+                    }],
+                    "tools": [{
+                        "google_search": {}
+                    }]
+                };
+
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(prompt)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API response error: ${response.status} ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (textContent) {
+                        displayResults(textContent);
+                    } else {
+                        throw new Error('No content found in API response.');
+                    }
+
+                } catch (error) {
+                    console.error('Analysis failed:', error);
+                    showError('Failed to analyze the domain. Please try again later.');
+                } finally {
+                    showLoading(false);
+                }
+            });
+
+            function showLoading(isLoading) {
+                analyzeButton.disabled = isLoading;
+                if (isLoading) {
+                    loader.classList.remove('hidden');
+                    buttonText.classList.add('hidden');
+                } else {
+                    loader.classList.add('hidden');
+                    buttonText.classList.remove('hidden');
+                }
+            }
+
+            function showError(message) {
+                errorMessage.classList.remove('hidden');
+                errorText.textContent = message;
+                hideResults();
+            }
+
+            function hideError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            function hideResults() {
+                resultsContainer.classList.add('hidden');
+            }
+
+            function displayResults(markdownText) {
+                const sections = {
+                    "Domain Overview": "content1",
+                    "Estimated Value": "content4", // Note the different order for tabs
+                    "SEO Potential": "content2",
+                    "Monetization Ideas": "content3",
+                    "Risks and Limitations": "content5",
+                    "Final Recommendation": "content5"
+                };
+
+                // Helper to render Markdown to HTML
+                function markdownToHtml(md) {
+                    let html = md.replace(/^(#+)\s(.*)/gm, (match, p1, p2) => {
+                        const level = p1.length;
+                        return `<h${level}>${p2}</h${level}>`;
+                    });
+                    html = html.replace(/^- (.*)/gm, '<li>$1</li>');
+                    html = `<ul>${html}</ul>`;
+                    html = html.replace(/<br\s*\/?>/g, ''); // Remove <br> tags
+                    return html;
+                }
+                
+                // Clear all previous content
+                Object.values(sections).forEach(id => {
+                    document.getElementById(id).innerHTML = '';
+                });
+
+                // Split the markdown into sections and populate tabs
+                const parsedSections = markdownText.split(/(## [^\n]+)/g).filter(Boolean);
+                let currentSection = '';
+                let contentBuffer = '';
+
+                parsedSections.forEach(part => {
+                    if (part.startsWith('## ')) {
+                        // A new section heading
+                        if (currentSection) {
+                            // Save the previous section's content
+                            const targetId = sections[currentSection];
+                            if (targetId) {
+                                document.getElementById(targetId).innerHTML += markdownToHtml(contentBuffer);
+                            }
+                        }
+                        currentSection = part.substring(3).trim();
+                        contentBuffer = part; // Include the heading in the section content
+                    } else {
+                        contentBuffer += part;
+                    }
+                });
+
+                // Save the last section
+                if (currentSection) {
+                    const targetId = sections[currentSection];
+                    if (targetId) {
+                        document.getElementById(targetId).innerHTML += markdownToHtml(contentBuffer);
+                    }
+                }
+                
+                resultsContainer.classList.remove('hidden');
+                switchTab('tab1'); // Show the first tab by default
+            }
+        });
+    </script>
+</body>
+</html>
